@@ -1,0 +1,71 @@
+---
+title: "Post Lab Week 8"
+author: "Madi Calbert"
+format: html
+editor: visual
+---
+
+## 
+
+```{r setup}
+
+library(tidyverse)
+library(here)
+
+library(ggfortify) # For PCA biplot
+
+library(janitor)
+
+```
+
+
+```{r}
+stream_df <- read_csv(here('data/stream_data_subset.csv'), na = c("", "NA"))
+
+summary(stream_df)
+
+clean_stream <- stream_df %>% 
+  select(-"tpc_uM", -"tpn_uM", -"tpp_uM") %>% 
+  drop_na()
+
+stream_long <- clean_stream %>%
+  pivot_longer(names_to = 'name', values_to = 'value', where(is.numeric)) 
+```
+
+
+```{r}
+ggplot(stream_long, aes(x = value)) +
+  geom_histogram() +
+  facet_wrap(~ name, scales = 'free_x')
+```
+
+```{r}
+stream_log <- stream_long %>% mutate(log_value = log(value)) %>% 
+  drop_na()
+
+
+ggplot(stream_log, aes(x = log_value)) +
+  geom_histogram() +
+  facet_wrap(~ name, scales = 'free_x')
+```
+
+```{r}
+log_stream <- clean_stream %>% mutate(across(nh4_uM:spec_cond_uSpercm, log))
+
+stream_pca <- log_stream %>% 
+  select(where(is.numeric)) %>%
+  prcomp(scale = TRUE)
+
+
+
+autoplot(stream_pca,
+     	data = stream_log, ### can grab the other data like names from this df
+     	loadings = TRUE, 
+     	colour = 'name', ### point color based on this variable
+     	loadings.label = TRUE, ### label loadings with axis names 
+     	loadings.colour = "black", 
+     	loadings.label.colour = "black",
+     	loadings.label.vjust = -0.5)+
+  theme_minimal()
+```
+

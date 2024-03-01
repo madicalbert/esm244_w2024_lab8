@@ -25,25 +25,25 @@ library(ggfortify) # For PCA biplot
 
 Principal components analysis is an ordination method allowing us to glean as much about our multivariate data as possible in a simplified number of dimensions.
 
-Here, we'll use [data from the Human Development Index](https://hdr.undp.org/data-center) (raw data and metadata are saved in the `data` folder in case you'd like to explore in more detail).  Quick overview of the HDI:
+Here, we'll use [data from the Human Development Index](https://hdr.undp.org/data-center) (raw data and metadata are saved in the `data` folder in case you'd like to explore in more detail). Quick overview of the HDI:
 
 > The Human Development Index (HDI) is a summary measure of average achievement in key dimensions of human development: a long and healthy life, being knowledgeable and having a decent standard of living. The HDI is the geometric mean of normalized indices for each of the three dimensions.
-> 
+>
 > The health dimension is assessed by life expectancy at birth, the education dimension is measured by mean of years of schooling for adults aged 25 years and more and expected years of schooling for children of school entering age. The standard of living dimension is measured by gross national income per capita. The HDI uses the logarithm of income, to reflect the diminishing importance of income with increasing GNI. The scores for the three HDI dimension indices are then aggregated into a composite index using geometric mean. Refer to Technical notes for more details.
 
 Here we are examining a selected set of variables:
 
-* le: Life expectancy at birth
-* gnipc: Gross per capita national income
-* eys: Expected years of schooling
-* mys: mean years of school
-* ineq_le: inequality in life expectancy
-* gii: Gender inequality index
-* co2_prod: CO2 production per capita
-* mf: material footprint (tonnes per capita)
-* lat: Latitude
+-   le: Life expectancy at birth
+-   gnipc: Gross per capita national income
+-   eys: Expected years of schooling
+-   mys: mean years of school
+-   ineq_le: inequality in life expectancy
+-   gii: Gender inequality index
+-   co2_prod: CO2 production per capita
+-   mf: material footprint (tonnes per capita)
+-   lat: Latitude
 
-PCA requires continuous numeric data with no NAs.  So we must drop categorical and character data, and exclude any rows with NAs.  We should also rescale so all numeric variables have a mean 0 and sd 1.
+PCA requires continuous numeric data with no NAs. So we must drop categorical and character data, and exclude any rows with NAs. We should also rescale so all numeric variables have a mean 0 and sd 1.
 
 ```{r}
 hdi_data_raw <- read_csv(here('data/hdi_clean.csv')) 
@@ -52,31 +52,45 @@ hdi_data_raw <- read_csv(here('data/hdi_clean.csv'))
 # summary(hdi_data_raw)
 
 hdi_data_long <- hdi_data_raw %>%
-  pivot_longer(names_to = 'name', values_to = 'value', where(is.numeric))
+  pivot_longer(names_to = 'name', values_to = 'value', where(is.numeric)) 
+## where(is.numeric) function  will select all of the columns where this is true, so take all columns that are numeric values and pivot it longer
 
 ggplot(hdi_data_long, aes(x = value)) +
   geom_histogram() +
   facet_wrap(~ name, scales = 'free_x')
+## (scales = 'free_x') allows each axis in the subplots to look nice 
+
+
+## Notice some of the skews, we don't need to be too worried about this, but some big outliers could be problematic - could do a log transorm, but we don't need to worry about it. 
 ```
 
 ```{r}
 hdi_data <- hdi_data_raw %>%
   drop_na() %>%
   mutate(hdicode = factor(hdicode, levels = c('Low', 'Medium', 'High', 'Very High'))) %>%
-  ### why are we log transforming?  PCA does not require normality.  
-  ### But see HDI description - they use log gnipc for their scoring.
+  ## Turn the hdicode variable into a factor by imposing some levels on it so that they appear in a logical order for us. 
   mutate(gnipc_2021 = log(gnipc_2021))
+### why are we log transforming?  PCA does not require normality. 
+### But see HDI description - they use log gnipc for their scoring.
+### we are trying to be more consistent with the HDI approach. 
 
 hdi_pca <- hdi_data %>% 
   select(where(is.numeric)) %>%
+### we need just the numeric values, it also can not deal with missing values (we do not have missing values, so we are okay, but not in the post lab or HW 4).
+### use select and where function again to get just the numeric values
   # select(-iso3, -country, -hdicode)) %>%
   # select(ends_with('2021'), lat) %>%
   prcomp(scale = TRUE)
+### all of our values on are differnt scales (2-25, 8-50, etc.) so we want to rescale so that they are recentered (mean = 0, SD = 1).
+### why is it a list of 5? Use "str(hdi_pca)" which is the structure function, 
+
+
+### can see the SD, rotation is like the variance, center is the amount adjusted, scale is how much it rescaled it, x is the new dimensions in the pca space 
 ```
 
 Examine the structure of the hdi_pca object.
 
-```r
+``` r
 List of 5
  $ sdev    : num [1:9] 2.506 0.965 0.84 0.607 0.507 ...
  $ rotation: num [1:9, 1:9] 0.368 0.35 0.35 0.354 -0.363 ...
@@ -94,16 +108,16 @@ List of 5
  - attr(*, "class")= chr "prcomp"
 ```
 
-* `sdev` is the standard deviation (square root of explained variance captured by each principal component)
-* `rotation` is the translation of base variables to principal components (and vice versa)
-* `center` is the factor applied for centering of the variables
-* `scale` is the factor for rescaling of the variables
-* `x` is a dataframe of all observations transformed to their new values in PC1, 2, etc.
+-   `sdev` is the standard deviation (square root of explained variance captured by each principal component)
+-   `rotation` is the translation of base variables to principal components (and vice versa)
+-   `center` is the factor applied for centering of the variables
+-   `scale` is the factor for rescaling of the variables
+-   `x` is a dataframe of all observations transformed to their new values in PC1, 2, etc.
 
-
-``` {r}
+```{r}
 # See the loadings (weighting for each principal component)
 hdi_pca$rotation
+### "hdi_pca$rotation" shows you the 9 principle components for each variable
 ```
 
 What can we say about the contributions of these variables to PC1, PC2, and PC3?
@@ -127,29 +141,39 @@ Let's try this the hard way, to get an intuition about what is happening in the 
 # loadings_df <- data.frame(hdi_pca$rotation) %>%
 loadings_df <- data.frame(hdi_pca$rotation * 8) %>% ### 8x multiplier is arbitrary, to extend the length of the arrows
   mutate(axis = row.names(.))
+### axis is the row.names from the previous argument, so the df with the rotation columnn in the hdi_pca
+### the "." = data.frame(hdi_pca$rotation)
 
 new_pts_df <- data.frame(hdi_pca$x)
+### the x values is the transformed values in the new coordinate system 
+### now we have the points and the arrows
 
+
+### let's plot it
 ggplot() +
   geom_point(data = new_pts_df, aes(x = PC1, y = PC2), 
              color = 'blue') +
   geom_segment(data = loadings_df,
-               x = 0, y = 0, aes(xend = PC1, yend = PC2, group = axis),
-               arrow = arrow(length = unit(.25, 'cm'))) +
-  geom_text(data = loadings_df,
-            aes(x = PC1, y = PC2, label = axis), vjust = 0, nudge_y = .01) +
+               x = 0, y = 0, ### this is where the values start
+               aes(xend = PC1, ### how much does this contribute to PC1
+                   yend = PC2, ### how much does this contribute to PC2
+                   group = axis),
+               arrow = arrow(length = unit(.25, 'cm'))) + ### adding the arrows
+  geom_text(data = loadings_df, ### add the end of each arrow, add a label from the axis column
+            aes(x = PC1, y = PC2, label = axis), vjust = 0, ### point is bottom of text
+            nudge_y = .01) + ### nudge up so that label is not on end of arrow 
   theme_minimal()
 ```
 
 and by autoplot
 
-``` {r}
+```{r}
 autoplot(hdi_pca,
-     	data = hdi_data,
-     	loadings = TRUE,
-     	colour = 'hdicode',
-     	loadings.label = TRUE,
-     	loadings.colour = "black",
+     	data = hdi_data, ### can grab the other data like names from this df
+     	loadings = TRUE, 
+     	colour = 'hdicode', ### point color based on this variable 
+     	loadings.label = TRUE, ### label loadings with axis names 
+     	loadings.colour = "black", 
      	loadings.label.colour = "black",
      	loadings.label.vjust = -0.5
      	) +
@@ -157,25 +181,28 @@ autoplot(hdi_pca,
   theme_minimal()
 
 # It's not perfect, but it's enough for now...
+### ggrepel() could work to prevent the overlapping labels, may not work with autoplot 
 ```
 
 ## Screeplot by hand
 
 first by hand, then by screeplot
+
 ```{r}
 sd_vec <- hdi_pca$sdev
 var_vec <- sd_vec^2 ### standard deviation is sqrt of variance!
 pc_names <- colnames(hdi_pca$rotation)
 
-pct_expl_df <- data.frame(v = var_vec,
+pct_expl_df <- data.frame(v = var_vec, ### all the variance explained by the PCs
                           pct_v = var_vec / sum(var_vec),
-                          pc = pc_names) %>%
-  mutate(pct_lbl = paste0(round(pct_v*100, 1), '%'))
+                          pc = pc_names) %>% 
+  mutate(pct_lbl = paste0(round(pct_v*100, 1), '%')) ### create a text label 
 
 ggplot(pct_expl_df, aes(x = pc, y = v)) +
   geom_col() +
   geom_text(aes(label = pct_lbl), vjust = 0, nudge_y = .002) +
-  labs(x = 'Principal component', y = 'Variance explained')
+  labs(x = 'Principal component', y = 'Variance explained') +
+  theme_minimal()
 ```
 
 ```{r}
@@ -183,4 +210,3 @@ ggplot(pct_expl_df, aes(x = pc, y = v)) +
 screeplot(hdi_pca, type = "lines")
 screeplot(hdi_pca, type = "barplot")
 ```
-
